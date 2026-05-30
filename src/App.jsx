@@ -78,11 +78,11 @@ export default function App() {
   };
 
   const handleZoomIn = () => {
-    spaceSceneRef.current?.zoomIn();
+    spaceSceneRef.current?.zoomIn?.();
   };
 
   const handleZoomOut = () => {
-    spaceSceneRef.current?.zoomOut();
+    spaceSceneRef.current?.zoomOut?.();
   };
 
   const handleSubmitTool = (toolData) => {
