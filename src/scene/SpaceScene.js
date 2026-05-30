@@ -220,15 +220,20 @@ export class SpaceScene {
         min3DDist = Math.max(10.0, Math.abs(this.camera.position.z));
       }
       
-      // Snappy, distance-scaled zoom factor. Accelerates when far, decelerates when close.
-      const zoomSpeedFactor = Math.max(10.0, min3DDist) * 0.0035;
+      // Dynamic zoom speed factor:
+      // Zoom out (deltaY > 0) is extremely snappy, using a high minimum base of 120.0 and a 0.022 multiplier.
+      // Zoom in (deltaY < 0) is precise and controlled, using a base of 30.0 and a 0.007 multiplier.
+      const baseDistance = e.deltaY > 0 ? 120.0 : 30.0;
+      const zoomMultiplier = e.deltaY > 0 ? 0.022 : 0.007;
+      
+      const zoomSpeedFactor = Math.max(baseDistance, min3DDist) * zoomMultiplier;
       const panFactor = Math.max(10.0, min3DDist) * 0.0022;
       
       // 1. Zoom via vertical scroll (or trackpad pinch zoom, which has ctrlKey=true)
       if (Math.abs(e.deltaY) > 0) {
         // Touchpad pinches have ctrlKey=true and generate smaller/smoother deltaY values
-        const multiplier = e.ctrlKey ? 0.8 : 1.0;
-        this.targetCameraZ += e.deltaY * zoomSpeedFactor * multiplier;
+        const touchMultiplier = e.ctrlKey ? 0.8 : 1.0;
+        this.targetCameraZ += e.deltaY * zoomSpeedFactor * touchMultiplier;
         
         // Clamp camera Z dynamically
         this.targetCameraZ = this.getClampedCameraZ(this.targetCameraZ);
