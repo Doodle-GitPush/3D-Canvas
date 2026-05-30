@@ -47,7 +47,7 @@ export class SpaceScene {
     // 1. Scene & Deep White Void Fog
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#ffffff'); // Solid white void
-    this.scene.fog = new THREE.FogExp2('#ffffff', 0.009); // Slightly denser fog to make deep cards fade cleanly
+    this.scene.fog = new THREE.FogExp2('#ffffff', 0.004); // Gentle fog — cards visible up to ~400 units
     
     // 2. Camera Configuration
     this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -140,7 +140,7 @@ export class SpaceScene {
         const deltaDist = distance - this.startTouchDistance;
         
         const touchSpeed = 0.15;
-        this.targetCameraZ = this.startTouchCameraZ - deltaDist * touchSpeed;
+        this.targetCameraZ = this.getClampedCameraZ(this.startTouchCameraZ - deltaDist * touchSpeed);
         
         // Scrolling zooms out focused card automatically
         if (this.focusedCard && deltaDist < -10) {
@@ -156,9 +156,24 @@ export class SpaceScene {
         const dx = e.clientX - this.startX;
         const dy = e.clientY - this.startY;
         
-        // Panning sensitivity scales dynamically based on camera Z depth (zoom level)
-        // Zoomed in close -> panning is slower/precise. Zoomed out far -> pans fast.
-        const factor = Math.max(8.0, Math.abs(this.camera.position.z)) * 0.0016;
+        // Dynamic pan factor based on 3D distance to closest cluster
+        let min3DDist = Infinity;
+        if (this.clusterManager && this.clusterManager.clusters) {
+          for (const cluster of this.clusterManager.clusters) {
+            const cdx = this.camera.position.x - cluster.position.x;
+            const cdy = this.camera.position.y - cluster.position.y;
+            const cdz = this.camera.position.z - cluster.position.z;
+            const dist3D = Math.sqrt(cdx * cdx + cdy * cdy + cdz * cdz);
+            if (dist3D < min3DDist) {
+              min3DDist = dist3D;
+            }
+          }
+        }
+        if (min3DDist === Infinity) {
+          min3DDist = Math.max(10.0, Math.abs(this.camera.position.z));
+        }
+        
+        const factor = Math.max(10.0, min3DDist) * 0.0022;
         
         this.targetCameraX = this.startCameraX - dx * factor;
         this.targetCameraY = this.startCameraY + dy * factor;
@@ -183,28 +198,51 @@ export class SpaceScene {
     this.canvas.addEventListener('pointerup', releasePointer);
     this.canvas.addEventListener('pointercancel', releasePointer);
 
-    // B. Figma-Style 2-Finger Trackpad Panning & Pinch Zoom
-    // Maps standard wheel events. Touchpads trigger e.ctrlKey=true during pinch gestures!
+    // B. Obsidian-Style Zoom & Pan (Wheel scrolls to zoom, dragging pans)
     // We prevent default browser zoom behaviour by utilizing non-passive { passive: false } hooks.
     window.addEventListener('wheel', (e) => {
       e.preventDefault();
       
-      if (e.ctrlKey) {
-        // 1. Pinch-to-Zoom Gesture (ctrlKey is true during touchpad pinches!)
-        const pinchSpeed = 0.08;
-        this.targetCameraZ += e.deltaY * pinchSpeed;
+      // Dynamic pan and zoom speed factors based on 3D distance to closest cluster
+      let min3DDist = Infinity;
+      if (this.clusterManager && this.clusterManager.clusters) {
+        for (const cluster of this.clusterManager.clusters) {
+          const cdx = this.camera.position.x - cluster.position.x;
+          const cdy = this.camera.position.y - cluster.position.y;
+          const cdz = this.camera.position.z - cluster.position.z;
+          const dist3D = Math.sqrt(cdx * cdx + cdy * cdy + cdz * cdz);
+          if (dist3D < min3DDist) {
+            min3DDist = dist3D;
+          }
+        }
+      }
+      if (min3DDist === Infinity) {
+        min3DDist = Math.max(10.0, Math.abs(this.camera.position.z));
+      }
+      
+      // Snappy, distance-scaled zoom factor. Accelerates when far, decelerates when close.
+      const zoomSpeedFactor = Math.max(10.0, min3DDist) * 0.0035;
+      const panFactor = Math.max(10.0, min3DDist) * 0.0022;
+      
+      // 1. Zoom via vertical scroll (or trackpad pinch zoom, which has ctrlKey=true)
+      if (Math.abs(e.deltaY) > 0) {
+        // Touchpad pinches have ctrlKey=true and generate smaller/smoother deltaY values
+        const multiplier = e.ctrlKey ? 0.8 : 1.0;
+        this.targetCameraZ += e.deltaY * zoomSpeedFactor * multiplier;
+        
+        // Clamp camera Z dynamically
+        this.targetCameraZ = this.getClampedCameraZ(this.targetCameraZ);
         
         if (this.focusedCard && e.deltaY > 0) {
           this.unfocusCard();
         }
-      } else {
-        // 2. Trackpad 2-Finger Panning (swiping horizontally/vertically without pinch)
-        // deltaX pans X. deltaY pans Y.
-        const panFactor = Math.max(8.0, Math.abs(this.camera.position.z)) * 0.0016;
-        this.targetCameraX += e.deltaX * panFactor * 0.6;
-        this.targetCameraY -= e.deltaY * panFactor * 0.6;
+      }
+      
+      // 2. Horizontal pan via horizontal scroll (deltaX)
+      if (Math.abs(e.deltaX) > 0) {
+        this.targetCameraX += e.deltaX * panFactor * 0.8;
         
-        if (this.focusedCard && (Math.abs(e.deltaX) > 5 || Math.abs(e.deltaY) > 5)) {
+        if (this.focusedCard && Math.abs(e.deltaX) > 5) {
           this.unfocusCard();
         }
       }
@@ -242,6 +280,31 @@ export class SpaceScene {
 
   getDistance(p1, p2) {
     return Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+  }
+
+  /**
+   * Clamps targetCameraZ dynamically so camera doesn't zoom through cluster cards
+   */
+  getClampedCameraZ(targetZ) {
+    let nearestCluster = null;
+    let minDist = Infinity;
+    
+    if (this.clusterManager && this.clusterManager.clusters) {
+      for (const cluster of this.clusterManager.clusters) {
+        const dx = this.camera.position.x - cluster.position.x;
+        const dy = this.camera.position.y - cluster.position.y;
+        const dz = this.camera.position.z - cluster.position.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist < minDist) {
+          minDist = dist;
+          nearestCluster = cluster;
+        }
+      }
+    }
+    
+    const minZ = nearestCluster ? nearestCluster.position.z + 6.0 : -350.0;
+    const maxZ = 600.0;
+    return Math.max(minZ, Math.min(maxZ, targetZ));
   }
 
   handleRaycastHover() {
@@ -359,8 +422,8 @@ export class SpaceScene {
     
     // Smooth lerping damping to camera coordinates (panning/zooming feel)
     if (!this.isTransitioning) {
-      const panDamping = 0.095;
-      const zoomDamping = 0.15;
+      const panDamping = 0.18;
+      const zoomDamping = 0.25;
       
       this.cameraX += (this.targetCameraX - this.cameraX) * panDamping;
       this.cameraY += (this.targetCameraY - this.cameraY) * panDamping;

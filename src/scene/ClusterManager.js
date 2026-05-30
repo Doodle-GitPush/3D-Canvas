@@ -26,6 +26,12 @@ export class ClusterManager {
       }
       this._toolsByCategory[tool.category].push({ ...tool, type: 'tool' });
     }
+
+    // Pre-populate ALL clusters immediately — don't wait for camera proximity
+    for (const cluster of this.clusters) {
+      this.populatedClusters.add(cluster.id);
+      this._populateCluster(cluster);
+    }
   }
 
   /**
@@ -51,15 +57,22 @@ export class ClusterManager {
    * Spawns all tools for a cluster in a spherical distribution
    */
   _populateCluster(cluster) {
-    const tools = this._getToolsForCluster(cluster);
-    const count = tools.length;
+    const baseTools = this._getToolsForCluster(cluster);
 
+    // Repeat tools to fill the sphere with density — each tool gets 4 copies
+    const COPIES = 4;
+    const tools = [];
+    for (let c = 0; c < COPIES; c++) {
+      for (const tool of baseTools) {
+        tools.push({ ...tool, _copy: c });
+      }
+    }
+
+    const total = tools.length;
     tools.forEach((tool, i) => {
-      // Stagger spawn animations for a wave-ripple feel
-      const delay = i * 0.04;
-
+      const delay = i * 0.015; // tight stagger — waterfall feel
       setTimeout(() => {
-        const { x, y, z } = this._sphericalPosition(cluster, i, count);
+        const { x, y, z } = this._sphericalPosition(cluster, i, total);
         this.cardManager.spawnCard(tool, x, y, z, cluster.accent);
       }, delay * 1000);
     });

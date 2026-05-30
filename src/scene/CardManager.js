@@ -41,7 +41,7 @@ export class CardManager {
    */
   cleanupFarNodes(camX, camY, camZ) {
     const camPos = new THREE.Vector3(camX, camY, camZ);
-    const maxDist = 700;
+    const maxDist = 1200;
 
     for (let i = this.cards.length - 1; i >= 0; i--) {
       if (this.cards[i].meshGroup.position.distanceTo(camPos) > maxDist) {
