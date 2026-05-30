@@ -47,7 +47,7 @@ export class SpaceScene {
     // 1. Scene & Deep White Void Fog
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color('#ffffff'); // Solid white void
-    this.scene.fog = new THREE.FogExp2('#ffffff', 0.004); // Gentle fog — cards visible up to ~400 units
+    this.scene.fog = new THREE.FogExp2('#ffffff', 0.0018); // Faint fog — clusters visible up to 800+ units as stellar dust
     
     // 2. Camera Configuration
     this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -177,6 +177,7 @@ export class SpaceScene {
         
         this.targetCameraX = this.startCameraX - dx * factor;
         this.targetCameraY = this.startCameraY + dy * factor;
+        this.clampCameraTargetPosition();
         
         // Auto unfocus currently focused card if dragged past threshold
         if (this.focusedCard && (Math.abs(dx) > 15 || Math.abs(dy) > 15)) {
@@ -246,6 +247,7 @@ export class SpaceScene {
       // 2. Horizontal pan via horizontal scroll (deltaX)
       if (Math.abs(e.deltaX) > 0) {
         this.targetCameraX += e.deltaX * panFactor * 0.8;
+        this.clampCameraTargetPosition();
         
         if (this.focusedCard && Math.abs(e.deltaX) > 5) {
           this.unfocusCard();
@@ -288,6 +290,14 @@ export class SpaceScene {
   }
 
   /**
+   * Clamps targetCameraX and targetCameraY to keep camera locked to cluster boundaries
+   */
+  clampCameraTargetPosition() {
+    this.targetCameraX = Math.max(-420.0, Math.min(420.0, this.targetCameraX));
+    this.targetCameraY = Math.max(-380.0, Math.min(380.0, this.targetCameraY));
+  }
+
+  /**
    * Clamps targetCameraZ dynamically so camera doesn't zoom through cluster cards
    */
   getClampedCameraZ(targetZ) {
@@ -308,7 +318,7 @@ export class SpaceScene {
     }
     
     const minZ = nearestCluster ? nearestCluster.position.z + 6.0 : -350.0;
-    const maxZ = 600.0;
+    const maxZ = 280.0; // Reduced from 600 to prevent zooming into empty white space
     return Math.max(minZ, Math.min(maxZ, targetZ));
   }
 
@@ -427,6 +437,8 @@ export class SpaceScene {
     
     // Smooth lerping damping to camera coordinates (panning/zooming feel)
     if (!this.isTransitioning) {
+      this.clampCameraTargetPosition();
+      
       const panDamping = 0.18;
       const zoomDamping = 0.25;
       
