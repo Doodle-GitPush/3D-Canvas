@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CardManager } from './CardManager';
+import { ClusterManager } from './ClusterManager';
 import { gsap } from 'gsap';
 
 export class SpaceScene {
@@ -7,10 +8,9 @@ export class SpaceScene {
    * @param {HTMLCanvasElement} canvasElement - WebGL target canvas
    * @param {Object} reactCallbacks - Callbacks to sync state back to React UI
    */
-  constructor(canvasElement, reactCallbacks, designFeed) {
+  constructor(canvasElement, reactCallbacks) {
     this.canvas = canvasElement;
     this.callbacks = reactCallbacks;
-    this.designFeed = designFeed || null;
     
     // Smooth damping targets
     this.cameraX = 0;
@@ -65,8 +65,9 @@ export class SpaceScene {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     
-    // 4. Card Manager (Spherical coordinates scattering cloud)
-    this.cardManager = new CardManager(this.scene, this.designFeed);
+    // 4. Card Manager + Cluster Manager
+    this.cardManager = new CardManager(this.scene);
+    this.clusterManager = new ClusterManager(this.cardManager);
     
     // 5. Ambient White Lighting
     this.setupLighting();
@@ -371,10 +372,17 @@ export class SpaceScene {
     // Camera looks straight forward along Z
     this.camera.lookAt(new THREE.Vector3(this.cameraX, this.cameraY, this.cameraZ - 50));
     
-    // 1. Procedural Infinite Chunk Spawning around current Camera coordinates (X, Y, Z)
-    this.cardManager.updateChunks(this.cameraX, this.cameraY, this.cameraZ);
+    // 1. Cluster proximity check — populates zones as camera approaches
+    this.clusterManager.update(this.cameraX, this.cameraY, this.cameraZ);
     
-    // 2. Clean up far nodes outside viewport boundaries (drift-free backtrack-safe)
+    // 2. Expose cluster label data to React (direct DOM update via callback)
+    if (this.callbacks.onClusterUpdate) {
+      this.callbacks.onClusterUpdate(
+        this.clusterManager.getClusterScreenData(this.camera)
+      );
+    }
+    
+    // 3. Clean up far nodes
     this.cardManager.cleanupFarNodes(this.cameraX, this.cameraY, this.cameraZ);
     
     // 3. Update active card floating animations
