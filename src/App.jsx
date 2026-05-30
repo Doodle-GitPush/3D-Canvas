@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SpaceScene } from './scene/SpaceScene';
 import { DesignFeed } from './services/DesignFeed';
+import { CLUSTERS } from './scene/ClusterConfig';
 import Header from './components/Header';
 import Inspector from './components/Inspector';
 import AddInspirationModal from './components/AddInspirationModal';
@@ -16,12 +17,25 @@ export default function App() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [hud, setHud] = useState({ percent: '0.0%', depth: '0m' });
 
+  // Cluster label DOM refs — updated directly by SpaceScene each frame (no React state)
+  const clusterLabelRefs = useRef({});
+
   // Show setup screen if no keys found in localStorage
   const [showSetup, setShowSetup] = useState(() => {
     const u = localStorage.getItem('unsplash_key');
     const p = localStorage.getItem('pexels_key');
     return !u && !p;
   });
+
+  // Stable callback — directly mutates DOM so 60fps updates don't trigger React re-renders
+  const handleClusterUpdate = useCallback((clusters) => {
+    for (const c of clusters) {
+      const el = clusterLabelRefs.current[c.id];
+      if (!el) continue;
+      el.style.opacity = c.opacity;
+      el.style.transform = `translate(${c.x}px, ${c.y}px) translate(-50%, -50%)`;
+    }
+  }, []);
 
   const initScene = (keys) => {
     if (!canvasRef.current) return;
@@ -45,6 +59,7 @@ export default function App() {
       },
       onCardUnfocus: () => setFocusedCardData(null),
       onHUDUpdate: (hudData) => setHud(hudData),
+      onClusterUpdate: handleClusterUpdate,
     };
 
     const space = new SpaceScene(canvasRef.current, callbacks, feed);
@@ -124,10 +139,28 @@ export default function App() {
             onSubmit={handleAddSubmit}
           />
 
+          {/* Cluster area labels — always mounted, positions driven by SpaceScene each frame */}
+          {CLUSTERS.map(cluster => (
+            <div
+              key={cluster.id}
+              ref={el => { clusterLabelRefs.current[cluster.id] = el; }}
+              className="react-overlay fixed top-0 left-0 pointer-events-none select-none flex flex-col items-center gap-1"
+              style={{ opacity: 0, transform: 'translate(-50%, -50%)', willChange: 'transform, opacity' }}
+            >
+              <div className="w-8 h-px bg-zinc-400 mb-0.5" />
+              <span className="text-[9px] font-title font-bold uppercase tracking-[0.22em] text-zinc-950 whitespace-nowrap">
+                {cluster.label}
+              </span>
+              <span className="text-[7.5px] font-title uppercase tracking-[0.18em] text-zinc-400 whitespace-nowrap">
+                {cluster.sublabel}
+              </span>
+            </div>
+          ))}
+
           {!focusedCardData && (
             <div className="react-overlay fixed bottom-4 left-1/2 -translate-x-1/2 px-2.5 py-1.5 rounded bg-zinc-950 text-white border border-zinc-900 shadow-sm flex items-center gap-1.5 text-[9.5px] uppercase font-title tracking-widest pointer-events-none select-none">
               <HelpCircle className="w-3 h-3 text-zinc-400" />
-              <span>Pinch to zoom · Drag to explore · Click card to focus</span>
+              <span>Pinch to zoom · Drag to explore · Click card to focus · Zoom out to reveal clusters</span>
             </div>
           )}
 

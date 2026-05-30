@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CardManager } from './CardManager';
+import { ClusterManager } from './ClusterManager';
 import { gsap } from 'gsap';
 
 export class SpaceScene {
@@ -67,6 +68,9 @@ export class SpaceScene {
     
     // 4. Card Manager (Spherical coordinates scattering cloud)
     this.cardManager = new CardManager(this.scene, this.designFeed);
+
+    // 4b. Cluster Manager (design-area zones visible when zoomed out)
+    this.clusterManager = new ClusterManager(this.scene);
     
     // 5. Ambient White Lighting
     this.setupLighting();
@@ -382,6 +386,15 @@ export class SpaceScene {
     
     // 4. Render
     this.renderer.render(this.scene, this.camera);
+
+    // 5. Update cluster rings + project labels (after render so camera matrices are current)
+    if (this.callbacks.onClusterUpdate) {
+      const clusters = this.clusterManager.update(
+        this.cameraZ, this.camera,
+        window.innerWidth, window.innerHeight,
+      );
+      this.callbacks.onClusterUpdate(clusters);
+    }
   }
 
   destroy() {
@@ -389,6 +402,7 @@ export class SpaceScene {
     window.removeEventListener('resize', this.resizeHandler);
     window.removeEventListener('gesturestart', this.gestureStartHandler);
     window.removeEventListener('gesturechange', this.gestureChangeHandler);
+    this.clusterManager.destroy();
     this.renderer.dispose();
   }
 }

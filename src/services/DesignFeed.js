@@ -36,6 +36,28 @@ export class DesignFeed {
   }
 
   /**
+   * Returns the next item whose query matches one of the provided hints.
+   * Falls back to getNext() if no match is found in the pool.
+   * @param {string[]} queries
+   * @returns {Object|null}
+   */
+  getNextByQueryHint(queries) {
+    if (!queries || queries.length === 0) return this.getNext();
+
+    if (this.pool.length < this.MIN_POOL && !this.isFetching) {
+      this._prefetch();
+    }
+
+    for (let i = 0; i < this.pool.length; i++) {
+      if (queries.includes(this.pool[i].query)) {
+        return this.pool.splice(i, 1)[0];
+      }
+    }
+
+    return this.getNext();
+  }
+
+  /**
    * Returns true if any API is configured
    */
   get isReady() {

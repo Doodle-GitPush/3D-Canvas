@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Card } from './Card';
 import { gsap } from 'gsap';
+import { CLUSTERS } from './ClusterConfig';
 
 export class CardManager {
   /**
@@ -62,8 +63,13 @@ export class CardManager {
       const y = cy * this.chunkSize + Math.random() * this.chunkSize;
       const z = cz * this.chunkSize + Math.random() * this.chunkSize;
 
-      // Grab the next item from the feed pool
-      const data = this.designFeed ? this.designFeed.getNext() : null;
+      // Grab the next item, biased toward this cluster's query themes if inside one
+      const cluster = this._nearestCluster(x, y, z);
+      const data = this.designFeed
+        ? (cluster
+          ? this.designFeed.getNextByQueryHint(cluster.queries)
+          : this.designFeed.getNext())
+        : null;
 
       if (data) {
         this._spawnCard(data, x, y, z);
@@ -168,6 +174,21 @@ export class CardManager {
     gsap.to(card.meshGroup.scale, { x: 1, y: 1, z: 1, duration: 1.0, ease: 'power3.out' });
 
     return card;
+  }
+
+  /**
+   * Returns the cluster whose boundary contains (x, y, z), or null.
+   */
+  _nearestCluster(x, y, z) {
+    for (const cluster of CLUSTERS) {
+      const dx = x - cluster.x;
+      const dy = y - cluster.y;
+      const dz = z - cluster.z;
+      if (Math.sqrt(dx * dx + dy * dy + dz * dz) <= cluster.radius) {
+        return cluster;
+      }
+    }
+    return null;
   }
 
   update(time) {
