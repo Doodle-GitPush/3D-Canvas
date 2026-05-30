@@ -322,6 +322,62 @@ export class SpaceScene {
     return Math.max(minZ, Math.min(maxZ, targetZ));
   }
 
+  /**
+   * Snappy zoom-in method triggered by UI buttons
+   */
+  zoomIn() {
+    this.unfocusCard();
+    
+    let min3DDist = Infinity;
+    if (this.clusterManager && this.clusterManager.clusters) {
+      for (const cluster of this.clusterManager.clusters) {
+        const cdx = this.camera.position.x - cluster.position.x;
+        const cdy = this.camera.position.y - cluster.position.y;
+        const cdz = this.camera.position.z - cluster.position.z;
+        const dist3D = Math.sqrt(cdx * cdx + cdy * cdy + cdz * cdz);
+        if (dist3D < min3DDist) {
+          min3DDist = dist3D;
+        }
+      }
+    }
+    if (min3DDist === Infinity) {
+      min3DDist = Math.max(10.0, Math.abs(this.camera.position.z));
+    }
+    
+    const zoomSpeedFactor = Math.max(30.0, min3DDist) * 0.007;
+    this.targetCameraZ -= 150 * zoomSpeedFactor;
+    this.targetCameraZ = this.getClampedCameraZ(this.targetCameraZ);
+    this.notifyHUD();
+  }
+
+  /**
+   * Snappy zoom-out method triggered by UI buttons
+   */
+  zoomOut() {
+    this.unfocusCard();
+    
+    let min3DDist = Infinity;
+    if (this.clusterManager && this.clusterManager.clusters) {
+      for (const cluster of this.clusterManager.clusters) {
+        const cdx = this.camera.position.x - cluster.position.x;
+        const cdy = this.camera.position.y - cluster.position.y;
+        const cdz = this.camera.position.z - cluster.position.z;
+        const dist3D = Math.sqrt(cdx * cdx + cdy * cdy + cdz * cdz);
+        if (dist3D < min3DDist) {
+          min3DDist = dist3D;
+        }
+      }
+    }
+    if (min3DDist === Infinity) {
+      min3DDist = Math.max(10.0, Math.abs(this.camera.position.z));
+    }
+    
+    const zoomSpeedFactor = Math.max(120.0, min3DDist) * 0.022;
+    this.targetCameraZ += 150 * zoomSpeedFactor;
+    this.targetCameraZ = this.getClampedCameraZ(this.targetCameraZ);
+    this.notifyHUD();
+  }
+
   handleRaycastHover() {
     if (this.isDragging || this.activeTouches.size > 0) return;
     

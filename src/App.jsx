@@ -4,7 +4,7 @@ import { clusters } from './scene/clusters';
 import Inspector from './components/Inspector';
 import ClusterLabels from './components/ClusterLabels';
 import SubmitToolModal from './components/SubmitToolModal';
-import { Compass, Plus } from 'lucide-react';
+import { Compass, Plus, Minus } from 'lucide-react';
 
 export default function App() {
   const canvasRef = useRef(null);
@@ -75,6 +75,14 @@ export default function App() {
     scene.targetCameraX = pos.x;
     scene.targetCameraY = pos.y;
     scene.targetCameraZ = pos.z + 16;
+  };
+
+  const handleZoomIn = () => {
+    spaceSceneRef.current?.zoomIn();
+  };
+
+  const handleZoomOut = () => {
+    spaceSceneRef.current?.zoomOut();
   };
 
   const handleSubmitTool = (toolData) => {
@@ -165,6 +173,24 @@ export default function App() {
           <span>Click card to inspect</span>
         </div>
       )}
+
+      {/* ── Zoom Controls ───────────────────────────────────────────────────── */}
+      <div className="react-overlay fixed bottom-4 right-4 z-40 flex flex-col gap-1">
+        <button
+          onClick={handleZoomIn}
+          className="w-8 h-8 rounded-md bg-white border border-zinc-200 shadow-sm flex items-center justify-center text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 active:scale-95 transition-all cursor-pointer"
+          title="Zoom In"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={handleZoomOut}
+          className="w-8 h-8 rounded-md bg-white border border-zinc-200 shadow-sm flex items-center justify-center text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 active:scale-95 transition-all cursor-pointer"
+          title="Zoom Out"
+        >
+          <Minus className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
